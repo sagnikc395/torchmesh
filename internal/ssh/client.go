@@ -87,7 +87,7 @@ func (c *Client) Exec(ctx context.Context, command string, stdout, stderr io.Wri
 }
 
 // Asynchronous execution of a command (exec-and-forget)
-func (c *Client) ExecDetached(ctx context.Context, prerun_commands []string, command, remoteDir, log_file string, host_id int) error {
+func (c *Client) ExecDetached(ctx context.Context, prerun_commands []string, command, remoteDir, log_file string, rank, worldSize int, masterAddr, masterPort string) error {
 	session, err := c.conn.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
@@ -98,11 +98,16 @@ func (c *Client) ExecDetached(ctx context.Context, prerun_commands []string, com
 	wrapped := fmt.Sprintf(`
 export PATH="$HOME/.local/bin:$PATH"
 export RANK=%d
+export LOCAL_RANK=0
+export NODE_RANK=%d
+export WORLD_SIZE=%d
+export MASTER_ADDR=%s
+export MASTER_PORT=%s
 cd %s 
 %s
 setsid %s > %s 2>&1 < /dev/null &
 echo $! > job.pid
-`, host_id, remoteDir, pre_run_joined_command, command, log_file)
+`, rank, rank, worldSize, shellQuote(masterAddr), shellQuote(masterPort), remoteDir, pre_run_joined_command, command, log_file)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -115,6 +120,10 @@ echo $! > job.pid
 	case res := <-errCh:
 		return res
 	}
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 // Transfers data from a reader to a remote file path

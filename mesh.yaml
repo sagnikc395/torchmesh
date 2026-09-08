@@ -16,4 +16,4 @@ ignore:
 prerun:
   - uv venv --python 3.12 --clear
   - source .venv/bin/activate
-  - uv pip install loguru 'jax[tpu]'
+  - uv pip install loguru torch

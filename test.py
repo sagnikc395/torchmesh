@@ -1,23 +1,28 @@
-from mimetypes import init
-import jax
 import os
+import torch
+import torch.distributed as dist
 from loguru import logger
 
 
-def init_distributed_jax():
-    """Initializes JAX distributed environment."""
-    RANK = os.environ.get("RANK", None)
-    if not RANK and jax.process_index() == 0:
-        logger.warning("JAX distributed got no RANK env variable")
-    jax.distributed.initialize(process_id=int(RANK) if RANK else None)
+def init_distributed_torch():
+    """Initializes one PyTorch distributed process per MESH host."""
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    backend = os.environ.get(
+        "TORCH_DISTRIBUTED_BACKEND",
+        "nccl" if torch.cuda.is_available() else "gloo",
+    )
 
-    if jax.process_index() == 0:
-        process_count = jax.process_count()
-        local_devices = len(jax.local_devices())
-        logger.info(f"JAX distributed initialized with {process_count} processes with {local_devices} per host.")
-        all_devices = jax.devices()
-        logger.info("Devices:")
-        for dev in all_devices:
-            logger.info(f"\tDevice ID: {dev.id}, Platform: {dev.platform}, Kind: {dev.device_kind}")
+    if world_size > 1 and not dist.is_initialized():
+        dist.init_process_group(backend=backend, init_method="env://")
 
-init_distributed_jax()
+    if rank == 0:
+        logger.info(
+            "PyTorch distributed initialized with %d processes (backend=%s, device=%s).",
+            world_size,
+            backend,
+            torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
+        )
+
+
+init_distributed_torch()

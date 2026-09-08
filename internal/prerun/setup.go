@@ -59,6 +59,7 @@ func RunOnAllHosts(cluster *parse.NodeConfig, mesh *parse.MeshConfig, mainfn SSH
 	failures := 0
 
 	for id, host := range cluster.Hosts {
+		id, host := id, host
 		wg.Add(1)
 		go func(host string) {
 			defer wg.Done()

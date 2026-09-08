@@ -6,7 +6,7 @@
 <br>
 
 
-**A Multi-Host JAX Orchestrator**
+**A Multi-Host PyTorch Orchestrator**
 
 </div>
 
@@ -56,7 +56,7 @@ prerun:
   - <steps to run before your command>
   - uv venv --python 3.12 --clear
   - source .venv/bin/activate
-  - uv pip install loguru 'jax[tpu]'
+  - uv pip install loguru torch
 ```
 
 3. Run `mesh setup <cluster>` to execute the `commands` from `mesh.yaml` on the specified `cluster`, on every host defined in `~/.config/mesh/cluster.yaml`.
@@ -75,11 +75,21 @@ Example output:
 
 4. To run a command, use `mesh run <cluster> <your command>`. This will copy your current directory to every host in the cluster, run all pre-run commands, and then execute your command with logs. If you kill the command on your local machine, MESH will mirror this behavior and terminate it across every host.
 
-The philosophy of MESH is to make it feel like you are running single-controller JAX, while in reality MESH orchestrates calls across all hosts and manages resources, cleanup, etc.
+The philosophy of MESH is to make it feel like you are running a single-controller PyTorch job, while in reality MESH orchestrates calls across all hosts and manages resources, cleanup, etc.
 
-**Note:** Calling `mesh run <cluster> <your command>` passes the rank of the process to each host. For example, host `x` will run:
+**Note:** Calling `mesh run <cluster> <your command>` launches one process per host and sets the PyTorch distributed environment on each host. For example, host `x` receives:
 ```
-RANK=x python main.py --lr 1e-3 ...
+RANK=x LOCAL_RANK=0 NODE_RANK=x WORLD_SIZE=<host_count> \
+MASTER_ADDR=<first_host> MASTER_PORT=29500 python main.py --lr 1e-3 ...
 ```
 
-Be sure to initialize JAX with individual ranks using environment variables to ensure proper logging from process 0.
+Initialize PyTorch distributed from those environment variables (use
+`TORCH_DISTRIBUTED_BACKEND=xla` for PyTorch/XLA where appropriate):
+```python
+import os
+import torch
+import torch.distributed as dist
+
+backend = os.environ.get("TORCH_DISTRIBUTED_BACKEND", "nccl" if torch.cuda.is_available() else "gloo")
+dist.init_process_group(backend=backend, init_method="env://")
+```

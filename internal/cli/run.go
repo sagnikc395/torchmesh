@@ -28,8 +28,8 @@ from ./mesh.yaml.
 Example:
   mesh run my-cluster python main.py --lr 1e-3
 
-Note it passes in the rank of the process so host x will run on each cluster 'RANK=x python main.py --lr 1e-3'
-Be sure to initialize JAX with individual ranks using ENV variables to display proper logs from process 0
+Each host receives PyTorch distributed environment variables (RANK, WORLD_SIZE,
+MASTER_ADDR, MASTER_PORT, and LOCAL_RANK) before the command is launched.
 `,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -127,7 +127,8 @@ func runHost(command string) prerun.SSHCommand {
 			prerun_final_command = append(prerun_final_command, command)
 		}
 
-		if err := client.ExecDetached(ctx, prerun_final_command, command, remote_dir, log_file, host_id); err != nil {
+		if err := client.ExecDetached(ctx, prerun_final_command, command, remote_dir, log_file,
+			host_id, len(cluster.Hosts), cluster.Hosts[0], "29500"); err != nil {
 			return fmt.Errorf("failed to execute command: %w", err)
 		}
 
